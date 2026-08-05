@@ -1,1 +1,1 @@
-ptint("hello")
+print("hello")
