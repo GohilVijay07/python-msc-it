@@ -1,0 +1,13 @@
+paragraph = input("Enter a paragraph: ")
+words = paragraph.split()
+
+print("number appears in the paragraph:", paragraph.count("word"))
+print("number of unique words:", len(set(words)))
+print("Words in list:", words)
+print("Number of words:", len(words))
+print("Number of characters:", len(paragraph))
+print("Number of characters without spaces:", len(paragraph.replace(" ", "")))
+print("Longest word:", max(words, key=len))
+print("Shortest word:", min(words, key=len))
+print("Repeated words:", [word for word in set(words) if words.count(word) > 1])      
+print("the original paragraph:", paragraph)
