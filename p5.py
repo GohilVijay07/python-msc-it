@@ -6,58 +6,60 @@ if n < 5:
 else:
     students = []
 
-    # Input Students
+    # Input student details
     for i in range(n):
-        print(f"\n--- Student {i + 1} ---")
+
+        print("\n--- Student", i + 1, "---")
 
         roll = int(input("Roll No: "))
         name = input("Name: ")
 
-        marks = []
+        total = 0
 
+        # Enter 5 subject marks
+        subject = ["python","java","php","linux","Data Structures and Algorithms"]
         for j in range(5):
-            mark = int(input(f"Subject {j + 1} Marks: "))
-            marks.append(mark)
-
-        total = sum(marks)
+            mark = int(input("Enter your Marks in  " + subject[j] + ": "))    # ask user to enter marks for each subject   
+            if mark > 100 or mark < 0:
+                print("Invalid Mark")
+                continue
+            total = total + mark
+            #  mark = int(input(subject[j] + " Marks: "))  # ask user to enter marks for each subject 
+    
         percentage = total / 5
 
         # Grade
         if percentage >= 90:
-            grade = "A"
+            grade = "Distinction"
         elif percentage >= 80:
-            grade = "B"
+            grade = "First Division"
         elif percentage >= 70:
-            grade = "C"
+            grade = "Second Division"
         elif percentage >= 60:
-            grade = "D"
+            grade = "Pass"
         else:
-            grade = "F"
+            grade = "Fail"
 
-        student = {
-            "roll": roll,
-            "name": name,
-            "total": total,
-            "percentage": percentage,
-            "grade": grade
-        }
+        students.append([roll, name, total, percentage, grade])
 
-        students.append(student)
-
-    students.sort(key=lambda student: student["total"], reverse=True)
+    # Sort students by total marks
+    students.sort(key=lambda x: x[2], reverse=True)
 
     print("\n========== Rank List ==========")
 
-    rank = 1
+    rank = 0
+    last_marks = -1
 
-    for i, student in enumerate(students):
+    for student in students:
 
-        if i > 0 and student["total"] != students[i - 1]["total"]:
-            rank = i + 1
+        # Same marks = same rank
+        if student[2] != last_marks:
+            rank = rank + 1
+            last_marks = student[2]
 
-        print(f"\nRank: {rank}")
-        print(f"Roll No: {student['roll']}")
-        print(f"Name: {student['name']}")
-        print(f"Total: {student['total']}")
-        print(f"Percentage: {student['percentage']:.2f}%")
-        print(f"Grade: {student['grade']}")
+        print("\nRank:", rank)
+        print("Roll No:", student[0])
+        print("Name:", student[1])
+        print("Total:", student[2])
+        print("Percentage:", round(student[3], 2), "%")
+        print("Grade:", student[4])
