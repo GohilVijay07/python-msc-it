@@ -1,4 +1,4 @@
-nums = input("Enter your number: ")
+nums = input("Enter your values: ")
 
 duplicates = []
 
