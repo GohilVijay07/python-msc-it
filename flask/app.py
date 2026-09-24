@@ -1,126 +1,187 @@
-import sqlite3
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash
+from datetime import datetime, date
+from flask import Flask, render_template, request, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey_for_todo_app'
 
-DATABASE = os.path.join(os.path.dirname(__file__), 'todo.db')
+# Configure SQLite Database
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'todo.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-def get_db_connection():
-    """Create and return a database connection with row access by column name."""
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+db = SQLAlchemy(app)
 
-def init_db():
-    """Initialize the database and create the todos table if it doesn't exist."""
-    conn = get_db_connection()
-    with conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS todos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                description TEXT,
-                completed INTEGER NOT NULL DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-    conn.close()
 
-# Auto-initialize database on start
-init_db()
+# ---------------------------------------------------------------------------
+# Data Schema / Model: Task
+# ---------------------------------------------------------------------------
+class Task(db.Model):
+    __tablename__ = 'tasks'
 
+    id = db.Column(db.Integer, primary_key=True)                      # Primary key
+    title = db.Column(db.String(150), nullable=False)                 # Task title
+    description = db.Column(db.String(300), nullable=True)            # Details about the task
+    priority = db.Column(db.String(20), default='Medium')             # "High", "Medium", "Low"
+    is_completed = db.Column(db.Boolean, default=False)               # True / False
+    due_date = db.Column(db.Date, nullable=True)                      # Task deadline (Date)
+
+    def __repr__(self):
+        return f"<Task #{self.id}: {self.title} [{self.priority}] (Completed: {self.is_completed})>"
+
+# Alias for backward compatibility
+Todo = Task
+
+
+# Helper: Seed initial sample tasks
+def seed_sample_data():
+    if Task.query.count() == 0:
+        samples = [
+            Task(
+                title="Complete Python Assignment",
+                description="Complete Flask practical with database CRUD operations",
+                priority="High",
+                is_completed=False,
+                due_date=date(2026, 9, 25)
+            ),
+            Task(
+                title="Prepare Semester Project Presentation",
+                description="Create slides covering database schema and architecture",
+                priority="Medium",
+                is_completed=False,
+                due_date=date(2026, 9, 28)
+            ),
+            Task(
+                title="Review Lecture Notes on SQLAlchemy",
+                description="Revise models, queries, and session commit methods",
+                priority="Low",
+                is_completed=True,
+                due_date=date(2026, 9, 24)
+            ),
+        ]
+        db.session.add_all(samples)
+        db.session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Routes & Functionality
+# ---------------------------------------------------------------------------
+
+# 1. GET / : Display two sections: Pending Tasks and Completed Tasks
 @app.route('/')
 def index():
-    """READ: Display all tasks and stats."""
-    conn = get_db_connection()
-    todos = conn.execute('SELECT * FROM todos ORDER BY id DESC').fetchall()
+    # Order pending tasks by priority/due date, completed tasks by id descending
+    pending_tasks = Task.query.filter_by(is_completed=False).order_by(Task.id.desc()).all()
+    completed_tasks = Task.query.filter_by(is_completed=True).order_by(Task.id.desc()).all()
     
-    total = len(todos)
-    completed = sum(1 for todo in todos if todo['completed'] == 1)
-    pending = total - completed
-    
-    conn.close()
-    return render_template('index.html', todos=todos, total=total, completed=completed, pending=pending)
+    total = len(pending_tasks) + len(completed_tasks)
+    completed_count = len(completed_tasks)
+    pending_count = len(pending_tasks)
 
+    return render_template(
+        'index.html',
+        pending_tasks=pending_tasks,
+        completed_tasks=completed_tasks,
+        total=total,
+        completed_count=completed_count,
+        pending_count=pending_count
+    )
+
+
+# 2. POST /add : Form to add a new task with title, description, priority, and due date
 @app.route('/add', methods=['POST'])
-def add():
-    """CREATE: Add a new task."""
+def add_task():
     title = request.form.get('title', '').strip()
-    description = request.form.get('description', '').strip()
+    description = request.form.get('description', '').strip() or None
+    priority = request.form.get('priority', 'Medium').strip()
+    due_date_str = request.form.get('due_date', '').strip()
 
-    if not title:
-        flash('Task title is required!', 'error')
-        return redirect(url_for('index'))
+    due_date = None
+    if due_date_str:
+        try:
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            due_date = None
 
-    conn = get_db_connection()
-    with conn:
-        conn.execute(
-            'INSERT INTO todos (title, description, completed) VALUES (?, ?, 0)',
-            (title, description)
+    if title:
+        new_task = Task(
+            title=title,
+            description=description,
+            priority=priority if priority in ['High', 'Medium', 'Low'] else 'Medium',
+            due_date=due_date,
+            is_completed=False
         )
-    conn.close()
-    flash('Task added successfully!', 'success')
+        db.session.add(new_task)
+        db.session.commit()
+
     return redirect(url_for('index'))
 
+
+# 3. GET /toggle/<id> : One-click button to toggle a task between Pending and Completed
 @app.route('/toggle/<int:id>')
-def toggle(id):
-    """UPDATE: Toggle task completion status."""
-    conn = get_db_connection()
-    todo = conn.execute('SELECT completed FROM todos WHERE id = ?', (id,)).fetchone()
-    if todo:
-        new_status = 0 if todo['completed'] == 1 else 1
-        with conn:
-            conn.execute('UPDATE todos SET completed = ? WHERE id = ?', (new_status, id))
-        status_text = 'completed' if new_status == 1 else 'marked pending'
-        flash(f'Task #{id} {status_text}!', 'info')
-    else:
-        flash('Task not found!', 'error')
-    conn.close()
+def toggle_task(id):
+    task = db.session.get(Task, id)
+    if task:
+        task.is_completed = not task.is_completed
+        db.session.commit()
+
     return redirect(url_for('index'))
 
-@app.route('/edit/<int:id>', methods=['GET', 'POST'])
-def edit(id):
-    """UPDATE: Edit task title and description."""
-    conn = get_db_connection()
-    todo = conn.execute('SELECT * FROM todos WHERE id = ?', (id,)).fetchone()
 
-    if not todo:
-        conn.close()
-        flash('Task not found!', 'error')
-        return redirect(url_for('index'))
-
-    if request.method == 'POST':
+# 4. POST /update/<id> : Update the details of an existing task
+@app.route('/update/<int:id>', methods=['POST'])
+@app.route('/edit/<int:id>', methods=['POST'])  # Alias for backward compatibility
+def update_task(id):
+    task = db.session.get(Task, id)
+    if task:
         title = request.form.get('title', '').strip()
-        description = request.form.get('description', '').strip()
+        description = request.form.get('description', '').strip() or None
+        priority = request.form.get('priority', 'Medium').strip()
+        due_date_str = request.form.get('due_date', '').strip()
 
-        if not title:
-            flash('Task title cannot be empty!', 'error')
-            conn.close()
-            return render_template('edit.html', todo=todo)
+        due_date = None
+        if due_date_str:
+            try:
+                due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                due_date = None
 
-        with conn:
-            conn.execute(
-                'UPDATE todos SET title = ?, description = ? WHERE id = ?',
-                (title, description, id)
-            )
-        conn.close()
-        flash('Task updated successfully!', 'success')
-        return redirect(url_for('index'))
+        if title:
+            task.title = title
+        task.description = description
+        if priority in ['High', 'Medium', 'Low']:
+            task.priority = priority
+        task.due_date = due_date
 
-    conn.close()
-    return render_template('edit.html', todo=todo)
+        db.session.commit()
 
-@app.route('/delete/<int:id>')
-def delete(id):
-    """DELETE: Remove a task by ID."""
-    conn = get_db_connection()
-    with conn:
-        conn.execute('DELETE FROM todos WHERE id = ?', (id,))
-    conn.close()
-    flash('Task deleted successfully!', 'success')
     return redirect(url_for('index'))
 
+
+# 5. POST /delete/<id> : Remove a task from the to-do list
+@app.route('/delete/<int:id>', methods=['POST', 'GET'])
+def delete_task(id):
+    task = db.session.get(Task, id)
+    if task:
+        db.session.delete(task)
+        db.session.commit()
+
+    return redirect(url_for('index'))
+
+
+# Optional Helper: Clear all completed tasks
+@app.route('/clear-completed', methods=['POST', 'GET'])
+def clear_completed():
+    Task.query.filter_by(is_completed=True).delete()
+    db.session.commit()
+    return redirect(url_for('index'))
+
+
+# ---------------------------------------------------------------------------
+# App Entrypoint
+# ---------------------------------------------------------------------------
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    with app.app_context():
+        db.create_all()
+        seed_sample_data()
+    app.run(debug=True)

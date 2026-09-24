@@ -2,5 +2,4 @@ labext.py
 
 
 venv/
-
-todo.db
+__pycache__/

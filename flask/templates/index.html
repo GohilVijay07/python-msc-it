@@ -1,108 +1,280 @@
-{% extends 'base.html' %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List Web App — Task Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-card">
+        <!-- App Header -->
+        <header class="app-header">
+            <span class="header-badge">Flask + SQLite ORM</span>
+            <h1>📝 Task Manager</h1>
+            <p class="subtitle">Manage assignments, meetings, project work, and daily activities</p>
+        </header>
 
-{% block content %}
-<header class="app-header">
-    <div class="header-title">
-        <h1>📝 My To-Do List</h1>
-        <p class="subtitle">Organize your daily tasks with Flask & SQLite</p>
+        <!-- Progress Summary Tracker -->
+        <div class="summary-container">
+            <div class="summary-info">
+                <span>Overall Progress</span>
+                <strong>{{ completed_count }} of {{ total }} tasks completed ({{ (completed_count / total * 100)|round|int if total > 0 else 0 }}%)</strong>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" style="width: {{ (completed_count / total * 100) if total > 0 else 0 }}%;"></div>
+            </div>
+            <div class="stats-row">
+                <span class="stat-pill stat-total">Total: <strong>{{ total }}</strong></span>
+                <span class="stat-pill stat-pending">Pending: <strong>{{ pending_count }}</strong></span>
+                <span class="stat-pill stat-completed">Completed: <strong>{{ completed_count }}</strong></span>
+            </div>
+        </div>
+
+        <!-- 2. CREATE (POST /add): Form to add a new task -->
+        <form action="{{ url_for('add_task') }}" method="POST" class="task-form">
+            <div class="form-grid-top">
+                <input 
+                    type="text" 
+                    name="title" 
+                    maxlength="150"
+                    placeholder="📌 Task Title (e.g. Complete Python Assignment)" 
+                    required 
+                    autofocus
+                    class="form-input input-title"
+                >
+                <select name="priority" class="form-input input-priority" title="Select Priority">
+                    <option value="High">🔴 High Priority</option>
+                    <option value="Medium" selected>🟡 Medium Priority</option>
+                    <option value="Low">🟢 Low Priority</option>
+                </select>
+                <input 
+                    type="date" 
+                    name="due_date" 
+                    title="Select Deadline / Due Date"
+                    class="form-input input-date"
+                >
+            </div>
+            <div class="form-grid-bottom">
+                <textarea 
+                    name="description" 
+                    maxlength="300"
+                    placeholder="📝 Task Details (e.g. Complete Flask practical with database CRUD operations)" 
+                    rows="2"
+                    class="form-input input-desc"
+                ></textarea>
+            </div>
+            <button type="submit" class="btn btn-add">➕ Add Task</button>
+        </form>
+
+        <!-- =============================================================== -->
+        <!-- SECTION 1: ⏳ Pending Tasks                                     -->
+        <!-- =============================================================== -->
+        <div class="section-container">
+            <div class="section-header">
+                <h2>⏳ Pending Tasks <span class="badge-count">{{ pending_tasks|length }}</span></h2>
+            </div>
+
+            <div class="task-list">
+                {% if pending_tasks %}
+                    {% for task in pending_tasks %}
+                        <div class="task-item priority-border-{{ task.priority|lower }}">
+                            <div class="task-content">
+                                <!-- 3. UPDATE: Toggle status button (GET /toggle/<id>) -->
+                                <a href="{{ url_for('toggle_task', id=task.id) }}" class="toggle-btn" title="Click to mark Completed">
+                                    <span class="check-icon unchecked"></span>
+                                </a>
+                                <div class="task-details">
+                                    <div class="task-meta-top">
+                                        <span class="priority-badge priority-{{ task.priority|lower }}">
+                                            {% if task.priority == 'High' %}🔴 High{% elif task.priority == 'Medium' %}🟡 Medium{% else %}🟢 Low{% endif %}
+                                        </span>
+                                        {% if task.due_date %}
+                                            <span class="due-badge" title="Deadline">📅 Due: <strong>{{ task.due_date.strftime('%Y-%m-%d') }}</strong></span>
+                                        {% endif %}
+                                    </div>
+                                    <strong class="task-title">{{ task.title }}</strong>
+                                    {% if task.description %}
+                                        <p class="task-desc">{{ task.description }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="task-actions">
+                                <a href="{{ url_for('toggle_task', id=task.id) }}" class="status-badge-link" title="Click to toggle status">
+                                    <span class="status-badge status-pending">Pending</span>
+                                </a>
+                                <!-- 4. UPDATE: Open edit modal (POST /update/<id>) -->
+                                <button type="button" class="btn-action btn-edit" title="Edit Task" onclick="openEditModal({{ task.id }}, '{{ task.title|replace('\'', '\\\'') }}', '{{ (task.description or '')|replace('\'', '\\\'')|replace('\n', ' ') }}', '{{ task.priority }}', '{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}')">
+                                    ✏️
+                                </button>
+                                <!-- 5. DELETE: Remove task (POST /delete/<id>) -->
+                                <form action="{{ url_for('delete_task', id=task.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Delete task: {{ task.title }}?');">
+                                    <button type="submit" class="btn-action btn-delete" title="Delete Task">🗑️</button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state empty-pending">
+                        <span class="empty-icon">🎉</span>
+                        <h3>No pending tasks!</h3>
+                        <p>All caught up! Use the form above to add your upcoming tasks.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- SECTION 2: ✅ Completed Tasks                                   -->
+        <!-- =============================================================== -->
+        <div class="section-container">
+            <div class="section-header">
+                <h2>✅ Completed Tasks <span class="badge-count">{{ completed_tasks|length }}</span></h2>
+                {% if completed_tasks %}
+                    <form action="{{ url_for('clear_completed') }}" method="POST" class="inline-form" onsubmit="return confirm('Clear all completed tasks?');">
+                        <button type="submit" class="btn-clear-completed" title="Clear all completed tasks">🧹 Clear Completed</button>
+                    </form>
+                {% endif %}
+            </div>
+
+            <div class="task-list">
+                {% if completed_tasks %}
+                    {% for task in completed_tasks %}
+                        <div class="task-item is-completed">
+                            <div class="task-content">
+                                <!-- 3. UPDATE: Toggle status button (GET /toggle/<id>) -->
+                                <a href="{{ url_for('toggle_task', id=task.id) }}" class="toggle-btn" title="Click to mark Pending">
+                                    <span class="check-icon checked">✓</span>
+                                </a>
+                                <div class="task-details">
+                                    <div class="task-meta-top">
+                                        <span class="priority-badge priority-muted">
+                                            {{ task.priority }} Priority
+                                        </span>
+                                        {% if task.due_date %}
+                                            <span class="due-badge due-muted">📅 {{ task.due_date.strftime('%Y-%m-%d') }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <strong class="task-title">{{ task.title }}</strong>
+                                    {% if task.description %}
+                                        <p class="task-desc">{{ task.description }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="task-actions">
+                                <a href="{{ url_for('toggle_task', id=task.id) }}" class="status-badge-link" title="Click to mark Pending">
+                                    <span class="status-badge status-completed">Completed</span>
+                                </a>
+                                <!-- 4. UPDATE: Open edit modal (POST /update/<id>) -->
+                                <button type="button" class="btn-action btn-edit" title="Edit Task" onclick="openEditModal({{ task.id }}, '{{ task.title|replace('\'', '\\\'') }}', '{{ (task.description or '')|replace('\'', '\\\'')|replace('\n', ' ') }}', '{{ task.priority }}', '{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}')">
+                                    ✏️
+                                </button>
+                                <!-- 5. DELETE: Remove task (POST /delete/<id>) -->
+                                <form action="{{ url_for('delete_task', id=task.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Delete completed task: {{ task.title }}?');">
+                                    <button type="submit" class="btn-action btn-delete" title="Delete Task">🗑️</button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state empty-completed">
+                        <span class="empty-icon">📝</span>
+                        <h3>No completed tasks yet</h3>
+                        <p>Complete a task above by clicking its checkmark to see it here.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Educational CRUD Cheat Sheet -->
+        <footer class="app-footer">
+            <h4>💡 How CRUD Works in this To-Do List Web App:</h4>
+            <div class="crud-grid">
+                <div class="crud-item">
+                    <span class="crud-letter">C</span>
+                    <span class="crud-title">Create (POST /add)</span>
+                    <code>task = Task(title, desc, priority, due_date)<br>db.session.add(task); db.session.commit()</code>
+                </div>
+                <div class="crud-item">
+                    <span class="crud-letter">R</span>
+                    <span class="crud-title">Read (GET /)</span>
+                    <code>Pending: Task.query.filter_by(is_completed=False)<br>Completed: Task.query.filter_by(is_completed=True)</code>
+                </div>
+                <div class="crud-item">
+                    <span class="crud-letter">U</span>
+                    <span class="crud-title">Update (GET /toggle & POST /update)</span>
+                    <code>task.is_completed = not task.is_completed<br>db.session.commit()</code>
+                </div>
+                <div class="crud-item">
+                    <span class="crud-letter">D</span>
+                    <span class="crud-title">Delete (POST /delete/&lt;id&gt;)</span>
+                    <code>db.session.delete(task)<br>db.session.commit()</code>
+                </div>
+            </div>
+            <p class="footer-note">Database: <code>todo.db</code> (SQLite) | Schema: <code>Task (id, title, description, priority, is_completed, due_date)</code></p>
+        </footer>
     </div>
 
-    <!-- Task Statistics -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <span class="stat-number">{{ total }}</span>
-            <span class="stat-label">Total</span>
-        </div>
-        <div class="stat-card stat-pending">
-            <span class="stat-number">{{ pending }}</span>
-            <span class="stat-label">Pending</span>
-        </div>
-        <div class="stat-card stat-completed">
-            <span class="stat-number">{{ completed }}</span>
-            <span class="stat-label">Completed</span>
-        </div>
-    </div>
-</header>
+    <!-- 4. UPDATE: Edit Task Modal Dialog (POST /update/<id>) -->
+    <dialog id="editDialog" class="modal-dialog">
+        <form id="editForm" method="POST" class="modal-form">
+            <div class="modal-header">
+                <h3>✏️ Update Task Details</h3>
+                <button type="button" class="btn-close" onclick="closeEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <label for="editTitle" class="form-label">Task Title *</label>
+                <input type="text" id="editTitle" name="title" maxlength="150" required class="form-input">
 
-<!-- Add Task Form (CREATE) -->
-<section class="card form-card">
-    <h2>Add New Task</h2>
-    <form action="{{ url_for('add') }}" method="POST" class="todo-form">
-        <div class="form-group">
-            <input 
-                type="text" 
-                name="title" 
-                placeholder="What needs to be done? *" 
-                required 
-                autocomplete="off"
-                class="form-control"
-            >
-        </div>
-        <div class="form-group">
-            <textarea 
-                name="description" 
-                placeholder="Add optional notes or details..." 
-                rows="2" 
-                class="form-control"
-            ></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary">➕ Add Task</button>
-    </form>
-</section>
-
-<!-- Task List (READ, UPDATE, DELETE) -->
-<section class="todo-list-section">
-    <h2>Tasks ({{ total }})</h2>
-
-    {% if todos %}
-        <div class="todo-list">
-            {% for todo in todos %}
-                <div class="todo-item {% if todo.completed %}is-completed{% endif %}">
-                    <div class="todo-status-col">
-                        <a href="{{ url_for('toggle', id=todo.id) }}" class="toggle-checkbox" title="Toggle Status">
-                            {% if todo.completed %}
-                                <span class="check-icon">✓</span>
-                            {% else %}
-                                <span class="uncheck-icon"></span>
-                            {% endif %}
-                        </a>
+                <div class="modal-row">
+                    <div>
+                        <label for="editPriority" class="form-label">Priority</label>
+                        <select id="editPriority" name="priority" class="form-input">
+                            <option value="High">🔴 High</option>
+                            <option value="Medium">🟡 Medium</option>
+                            <option value="Low">🟢 Low</option>
+                        </select>
                     </div>
-                    
-                    <div class="todo-content">
-                        <div class="todo-title-row">
-                            <h3 class="todo-title">{{ todo.title }}</h3>
-                            <span class="badge {% if todo.completed %}badge-completed{% else %}badge-pending{% endif %}">
-                                {% if todo.completed %}Completed{% else %}Pending{% endif %}
-                            </span>
-                        </div>
-                        {% if todo.description %}
-                            <p class="todo-desc">{{ todo.description }}</p>
-                        {% endif %}
-                        <div class="todo-meta">
-                            <small>Created on: {{ todo.created_at }}</small>
-                        </div>
-                    </div>
-
-                    <div class="todo-actions">
-                        <a href="{{ url_for('toggle', id=todo.id) }}" class="btn btn-sm btn-outline" title="Toggle Complete">
-                            {% if todo.completed %}↩ Pending{% else %}✓ Done{% endif %}
-                        </a>
-                        <a href="{{ url_for('edit', id=todo.id) }}" class="btn btn-sm btn-secondary" title="Edit Task">
-                            ✏️ Edit
-                        </a>
-                        <a href="{{ url_for('delete', id=todo.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this task?');" title="Delete Task">
-                            🗑️ Delete
-                        </a>
+                    <div>
+                        <label for="editDueDate" class="form-label">Due Date</label>
+                        <input type="date" id="editDueDate" name="due_date" class="form-input">
                     </div>
                 </div>
-            {% endfor %}
-        </div>
-    {% else %}
-        <div class="empty-state card">
-            <div class="empty-icon">🎉</div>
-            <h3>No tasks yet!</h3>
-            <p>Add your first task above to get started.</p>
-        </div>
-    {% endif %}
-</section>
-{% endblock %}
+
+                <label for="editDescription" class="form-label">Details / Description</label>
+                <textarea id="editDescription" name="description" maxlength="300" rows="3" class="form-input"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-save">💾 Update Task</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script>
+        function openEditModal(id, title, description, priority, dueDate) {
+            const dialog = document.getElementById('editDialog');
+            const form = document.getElementById('editForm');
+            form.action = '/update/' + id;
+            document.getElementById('editTitle').value = title;
+            document.getElementById('editDescription').value = description;
+            document.getElementById('editPriority').value = priority;
+            document.getElementById('editDueDate').value = dueDate;
+            dialog.showModal();
+        }
+
+        function closeEditModal() {
+            document.getElementById('editDialog').close();
+        }
+
+        // Close modal when clicking on the backdrop
+        document.getElementById('editDialog').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.close();
+            }
+        });
+    </script>
+</body>
+</html>
