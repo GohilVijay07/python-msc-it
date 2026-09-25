@@ -3,3 +3,4 @@ labext.py
 
 venv/
 __pycache__/
+*.db

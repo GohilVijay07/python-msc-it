@@ -129,8 +129,8 @@ def toggle_task(id):
 
 
 # 4. POST /update/<id> : Update the details of an existing task
-@app.route('/update/<int:id>', methods=['POST'])
-@app.route('/edit/<int:id>', methods=['POST'])  # Alias for backward compatibility
+@app.route('/update/<int:id>', methods=['PUT'])
+@app.route('/edit/<int:id>', methods=['PUT'])  # Alias for backward compatibility
 def update_task(id):
     task = db.session.get(Task, id)
     if task:
@@ -159,7 +159,7 @@ def update_task(id):
 
 
 # 5. POST /delete/<id> : Remove a task from the to-do list
-@app.route('/delete/<int:id>', methods=['POST', 'GET'])
+@app.route('/delete/<int:id>', methods=['DELETE'])
 def delete_task(id):
     task = db.session.get(Task, id)
     if task:
