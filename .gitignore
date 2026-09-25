@@ -4,3 +4,5 @@ labext.py
 venv/
 __pycache__/
 *.db
+.gitignore
+README.md
