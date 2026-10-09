@@ -1,0 +1,857 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Todo App{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="brand-icon">✨</span>
+            <span>TaskFlow</span>
+        </div>
+        <div class="nav-right">
+            <div class="nav-user-badge">
+                <span class="user-avatar" id="nav-avatar">👤</span>
+                <span class="nav-user" id="nav-username">Loading...</span>
+            </div>
+            <button class="btn-logout" onclick="logout()" title="Logout">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Logout</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="dashboard-content">
+
+        <!-- Welcome & Quick Stats -->
+        <div class="stats-grid">
+            <div class="stat-card" data-filter="all" onclick="setFilter('all')">
+                <div class="stat-icon stat-total">📋</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="stat-total">0</span>
+                    <span class="stat-label">Total Tasks</span>
+                </div>
+            </div>
+            <div class="stat-card" data-filter="pending" onclick="setFilter('pending')">
+                <div class="stat-icon stat-pending">⏳</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="stat-pending">0</span>
+                    <span class="stat-label">Pending</span>
+                </div>
+            </div>
+            <div class="stat-card" data-filter="completed" onclick="setFilter('completed')">
+                <div class="stat-icon stat-completed">✅</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="stat-completed">0</span>
+                    <span class="stat-label">Completed</span>
+                </div>
+            </div>
+            <div class="stat-card" data-filter="overdue" onclick="setFilter('overdue')">
+                <div class="stat-icon stat-overdue">⚠️</div>
+                <div class="stat-info">
+                    <span class="stat-value" id="stat-overdue">0</span>
+                    <span class="stat-label">Overdue</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Todo Card -->
+        <div class="add-todo-card">
+            <div class="card-header">
+                <h2>➕ Add New Task</h2>
+                <span class="header-hint">Set title, deadline & priority</span>
+            </div>
+
+            <div id="todo-error" class="error-msg" style="display:none;"></div>
+
+            <form id="todo-form" onsubmit="return addTodo(event)">
+                <div class="form-row-main">
+                    <input type="text" id="todo-title"
+                           placeholder="What needs to be done? (Title)" required autocomplete="off">
+                    <input type="text" id="todo-desc"
+                           placeholder="Description / Notes (Optional)" autocomplete="off">
+                </div>
+
+                <div class="form-row-meta">
+                    <!-- Due Date & Time Picker -->
+                    <div class="field-with-label">
+                        <label for="todo-due">⏰ Due Date & Time</label>
+                        <input type="datetime-local" id="todo-due">
+                    </div>
+
+                    <!-- Priority Selector -->
+                    <div class="field-with-label">
+                        <label for="todo-priority">🎯 Priority</label>
+                        <select id="todo-priority">
+                            <option value="low">🟢 Low</option>
+                            <option value="medium" selected>🟡 Medium</option>
+                            <option value="high">🔴 High</option>
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="field-with-label btn-field">
+                        <label>&nbsp;</label>
+                        <button type="submit" class="btn-add" id="btn-add-todo">
+                            <span>+ Add Task</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Date Presets -->
+                <div class="quick-presets">
+                    <span class="preset-title">Quick Time:</span>
+                    <button type="button" class="preset-btn" onclick="setDuePreset('today_6pm')">Today 6:00 PM</button>
+                    <button type="button" class="preset-btn" onclick="setDuePreset('tomorrow_10am')">Tomorrow 10:00 AM</button>
+                    <button type="button" class="preset-btn" onclick="setDuePreset('weekend')">This Weekend</button>
+                    <button type="button" class="preset-btn preset-clear" onclick="setDuePreset('clear')">Clear Time</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Control Bar: Search, Filters & Sorting -->
+        <div class="controls-card">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-input" placeholder="Search tasks by title or description..." oninput="handleSearch()">
+                <button type="button" id="clear-search" class="clear-search-btn" style="display:none;" onclick="clearSearch()">✕</button>
+            </div>
+
+            <div class="filter-sort-row">
+                <div class="filter-tabs">
+                    <button type="button" class="tab-btn active" data-filter="all" onclick="setFilter('all')">
+                        All <span class="tab-badge" id="tab-count-all">0</span>
+                    </button>
+                    <button type="button" class="tab-btn" data-filter="pending" onclick="setFilter('pending')">
+                        Pending <span class="tab-badge" id="tab-count-pending">0</span>
+                    </button>
+                    <button type="button" class="tab-btn" data-filter="completed" onclick="setFilter('completed')">
+                        Completed <span class="tab-badge" id="tab-count-completed">0</span>
+                    </button>
+                </div>
+
+                <div class="filter-dropdowns">
+                    <select id="filter-priority" onchange="renderTodos()">
+                        <option value="all">All Priorities</option>
+                        <option value="high">🔴 High</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="low">🟢 Low</option>
+                    </select>
+
+                    <select id="sort-order" onchange="renderTodos()">
+                        <option value="newest">🕒 Newest First</option>
+                        <option value="oldest">⏳ Oldest First</option>
+                        <option value="due_date">⏰ Due Date</option>
+                        <option value="priority">🎯 Priority</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Todo List Container -->
+        <div class="todo-list-card">
+            <div class="todo-list-header">
+                <h2>
+                    <span>Tasks</span>
+                    <span class="todo-count" id="todo-count">0</span>
+                </h2>
+                <span class="list-subtitle" id="list-filter-label">Showing all tasks</span>
+            </div>
+
+            <div id="todo-list" class="todo-list">
+                <!-- Todos loaded here -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state" style="display:none;">
+                <div class="empty-icon" id="empty-icon">📋</div>
+                <h3 id="empty-title">No tasks found</h3>
+                <p id="empty-desc">Add a new task above with a deadline to stay on track!</p>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="modal" style="display:none;">
+    <div class="modal-overlay" onclick="closeModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>✏️ Edit Task</h3>
+            <button type="button" class="btn-close-modal" onclick="closeModal()">✕</button>
+        </div>
+
+        <div id="edit-error" class="error-msg" style="display:none;"></div>
+
+        <form onsubmit="return updateTodo(event)">
+            <input type="hidden" id="edit-id">
+
+            <div class="input-group">
+                <label>Task Title <span class="req">*</span></label>
+                <input type="text" id="edit-title" required autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label>Description / Notes</label>
+                <textarea id="edit-desc" rows="3" placeholder="Additional details..."></textarea>
+            </div>
+
+            <div class="modal-grid-row">
+                <div class="input-group">
+                    <label>⏰ Due Date & Time</label>
+                    <input type="datetime-local" id="edit-due">
+                </div>
+
+                <div class="input-group">
+                    <label>🎯 Priority</label>
+                    <select id="edit-priority">
+                        <option value="low">🟢 Low</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="high">🔴 High</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="input-group checkbox-group">
+                <label class="custom-checkbox-label">
+                    <input type="checkbox" id="edit-completed">
+                    <span class="checkbox-custom"></span>
+                    <span class="checkbox-text">Mark as completed</span>
+                </label>
+            </div>
+
+            <div class="modal-buttons">
+                <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn-primary" id="btn-save-edit">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+
+const TOKEN = localStorage.getItem('token');
+
+// If not logged in, redirect to login
+if (!TOKEN) {
+    window.location.href = '/login';
+}
+
+// Set user info in navbar
+const username = localStorage.getItem('username');
+document.getElementById('nav-username').textContent = username || 'User';
+if (username) {
+    document.getElementById('nav-avatar').textContent = username.charAt(0).toUpperCase();
+}
+
+// Global state
+let allTodos = [];
+let activeFilter = 'all'; // 'all', 'pending', 'completed', 'overdue'
+let searchQuery = '';
+
+// ============ HELPER: Handle 401 ============
+
+function checkAuth(res) {
+    if (res.status === 401) {
+        alert('Session expired. Please login again.');
+        logout();
+        return false;
+    }
+    return true;
+}
+
+// ============ AUTH HEADER ============
+
+function authHeaders() {
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + TOKEN
+    };
+}
+
+// ============ LOAD TODOS ============
+
+async function loadTodos() {
+    try {
+        const res = await fetch('/todo', {
+            headers: authHeaders()
+        });
+
+        if (!checkAuth(res)) return;
+
+        allTodos = await res.json();
+        updateStats();
+        renderTodos();
+
+    } catch (err) {
+        console.error('Error loading todos:', err);
+    }
+}
+
+// ============ STATS CALCULATION ============
+
+function updateStats() {
+    const total = allTodos.length;
+    let completed = 0;
+    let pending = 0;
+    let overdue = 0;
+    const now = new Date();
+
+    allTodos.forEach(t => {
+        if (t.completed) {
+            completed++;
+        } else {
+            pending++;
+            if (t.due_date) {
+                const due = new Date(t.due_date);
+                if (!isNaN(due.getTime()) && due < now) {
+                    overdue++;
+                }
+            }
+        }
+    });
+
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-pending').textContent = pending;
+    document.getElementById('stat-completed').textContent = completed;
+    document.getElementById('stat-overdue').textContent = overdue;
+
+    document.getElementById('tab-count-all').textContent = total;
+    document.getElementById('tab-count-pending').textContent = pending;
+    document.getElementById('tab-count-completed').textContent = completed;
+}
+
+// ============ FILTERING & SORTING ============
+
+function setFilter(filter) {
+    activeFilter = filter;
+
+    // Update active tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-filter') === filter) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // Update stat card highlights
+    document.querySelectorAll('.stat-card').forEach(card => {
+        if (card.getAttribute('data-filter') === filter) {
+            card.classList.add('active-stat');
+        } else {
+            card.classList.remove('active-stat');
+        }
+    });
+
+    // Update subtitle
+    const labelMap = {
+        'all': 'Showing all tasks',
+        'pending': 'Showing pending tasks',
+        'completed': 'Showing completed tasks',
+        'overdue': 'Showing overdue tasks'
+    };
+    document.getElementById('list-filter-label').textContent = labelMap[filter] || 'Tasks';
+
+    renderTodos();
+}
+
+function handleSearch() {
+    const input = document.getElementById('search-input');
+    searchQuery = input.value.trim().toLowerCase();
+    document.getElementById('clear-search').style.display = searchQuery ? 'block' : 'none';
+    renderTodos();
+}
+
+function clearSearch() {
+    document.getElementById('search-input').value = '';
+    searchQuery = '';
+    document.getElementById('clear-search').style.display = 'none';
+    renderTodos();
+}
+
+function renderTodos() {
+    const list = document.getElementById('todo-list');
+    const empty = document.getElementById('empty-state');
+    const count = document.getElementById('todo-count');
+    const priorityFilter = document.getElementById('filter-priority').value;
+    const sortOrder = document.getElementById('sort-order').value;
+    const now = new Date();
+
+    // 1. Filter
+    let filtered = allTodos.filter(todo => {
+        // Status filter
+        if (activeFilter === 'pending' && todo.completed) return false;
+        if (activeFilter === 'completed' && !todo.completed) return false;
+        if (activeFilter === 'overdue') {
+            if (todo.completed || !todo.due_date) return false;
+            const due = new Date(todo.due_date);
+            if (isNaN(due.getTime()) || due >= now) return false;
+        }
+
+        // Priority filter
+        if (priorityFilter !== 'all' && (todo.priority || 'medium') !== priorityFilter) {
+            return false;
+        }
+
+        // Search query
+        if (searchQuery) {
+            const titleMatch = (todo.title || '').toLowerCase().includes(searchQuery);
+            const descMatch = (todo.description || '').toLowerCase().includes(searchQuery);
+            if (!titleMatch && !descMatch) return false;
+        }
+
+        return true;
+    });
+
+    // 2. Sort
+    filtered.sort((a, b) => {
+        if (sortOrder === 'newest') {
+            return (b.id || 0) - (a.id || 0);
+        } else if (sortOrder === 'oldest') {
+            return (a.id || 0) - (b.id || 0);
+        } else if (sortOrder === 'due_date') {
+            if (!a.due_date && !b.due_date) return 0;
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date) - new Date(b.due_date);
+        } else if (sortOrder === 'priority') {
+            const pWeight = { high: 3, medium: 2, low: 1 };
+            const wa = pWeight[a.priority] || 2;
+            const wb = pWeight[b.priority] || 2;
+            return wb - wa;
+        }
+        return 0;
+    });
+
+    count.textContent = filtered.length;
+
+    // 3. Render
+    if (filtered.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+
+        if (searchQuery) {
+            document.getElementById('empty-icon').textContent = '🔍';
+            document.getElementById('empty-title').textContent = 'No matching tasks';
+            document.getElementById('empty-desc').textContent = `No tasks found matching "${searchQuery}".`;
+        } else if (activeFilter === 'completed') {
+            document.getElementById('empty-icon').textContent = '🎉';
+            document.getElementById('empty-title').textContent = 'No completed tasks yet';
+            document.getElementById('empty-desc').textContent = 'Finish tasks to see them completed here!';
+        } else if (activeFilter === 'overdue') {
+            document.getElementById('empty-icon').textContent = '🥳';
+            document.getElementById('empty-title').textContent = 'Great job!';
+            document.getElementById('empty-desc').textContent = 'You have no overdue tasks.';
+        } else {
+            document.getElementById('empty-icon').textContent = '📋';
+            document.getElementById('empty-title').textContent = 'No tasks yet';
+            document.getElementById('empty-desc').textContent = 'Add your first task above with a deadline to get started!';
+        }
+        return;
+    }
+
+    empty.style.display = 'none';
+
+    list.innerHTML = filtered.map(todo => {
+        const isDone = Boolean(todo.completed);
+        const priority = (todo.priority || 'medium').toLowerCase();
+        const dueMeta = getDueBadge(todo.due_date, isDone);
+        const createdText = formatCreatedTime(todo.created_at);
+
+        return `
+            <div class="todo-item ${isDone ? 'is-completed' : ''}" data-id="${todo.id}">
+                <button class="todo-check-btn ${isDone ? 'checked' : ''}"
+                        onclick="toggleTodoStatus(${todo.id})"
+                        title="${isDone ? 'Mark as incomplete' : 'Mark as complete'}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </button>
+
+                <div class="todo-info">
+                    <div class="todo-header-row">
+                        <h3 class="todo-title">${escapeHtml(todo.title)}</h3>
+                    </div>
+
+                    ${todo.description ? `<p class="todo-description">${escapeHtml(todo.description)}</p>` : ''}
+
+                    <div class="todo-badges-row">
+                        <!-- Priority Badge -->
+                        <span class="badge badge-priority badge-priority-${priority}">
+                            ${priority === 'high' ? '🔴 High' : priority === 'low' ? '🟢 Low' : '🟡 Medium'}
+                        </span>
+
+                        <!-- Due Time Badge -->
+                        ${dueMeta ? `
+                            <span class="badge badge-due ${dueMeta.className}">
+                                ${dueMeta.icon} ${escapeHtml(dueMeta.text)}
+                            </span>
+                        ` : ''}
+
+                        <!-- Created Time Badge -->
+                        ${createdText ? `
+                            <span class="badge badge-created" title="Created time">
+                                🕒 ${escapeHtml(createdText)}
+                            </span>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <div class="todo-actions">
+                    <button class="btn-action btn-edit"
+                            onclick="openEdit(${todo.id})"
+                            title="Edit Task">
+                        ✏️
+                    </button>
+                    <button class="btn-action btn-delete"
+                            onclick="deleteTodo(${todo.id})"
+                            title="Delete Task">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ============ TIME FORMATTING HELPERS ============
+
+function formatCreatedTime(createdStr) {
+    if (!createdStr) return '';
+    try {
+        const date = new Date(typeof createdStr === 'string' ? createdStr.replace(' ', 'T') : createdStr);
+        if (isNaN(date.getTime())) return '';
+
+        const now = new Date();
+        const isToday = date.toDateString() === now.toDateString();
+        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        if (isToday) {
+            return `Today, ${timeStr}`;
+        }
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + `, ${timeStr}`;
+    } catch (e) {
+        return '';
+    }
+}
+
+function getDueBadge(dueStr, isCompleted) {
+    if (!dueStr) return null;
+    try {
+        const due = new Date(dueStr.replace(' ', 'T'));
+        if (isNaN(due.getTime())) return null;
+
+        if (isCompleted) {
+            return {
+                icon: '✓',
+                text: 'Done',
+                className: 'badge-due-done'
+            };
+        }
+
+        const now = new Date();
+        const isToday = due.toDateString() === now.toDateString();
+        const timeStr = due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dateStr = due.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+        if (due < now) {
+            return {
+                icon: '⚠️',
+                text: `Overdue: ${isToday ? 'Today ' + timeStr : dateStr + ', ' + timeStr}`,
+                className: 'badge-due-overdue'
+            };
+        }
+
+        if (isToday) {
+            return {
+                icon: '⏰',
+                text: `Today at ${timeStr}`,
+                className: 'badge-due-today'
+            };
+        }
+
+        const tomorrow = new Date();
+        tomorrow.setDate(now.getDate() + 1);
+        if (due.toDateString() === tomorrow.toDateString()) {
+            return {
+                icon: '📅',
+                text: `Tomorrow at ${timeStr}`,
+                className: 'badge-due-tomorrow'
+            };
+        }
+
+        return {
+            icon: '📅',
+            text: `Due: ${dateStr}, ${timeStr}`,
+            className: 'badge-due-future'
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+// ============ QUICK DUE PRESETS ============
+
+function setDuePreset(type) {
+    const input = document.getElementById('todo-due');
+    if (type === 'clear') {
+        input.value = '';
+        return;
+    }
+
+    const d = new Date();
+    if (type === 'today_6pm') {
+        d.setHours(18, 0, 0, 0);
+    } else if (type === 'tomorrow_10am') {
+        d.setDate(d.getDate() + 1);
+        d.setHours(10, 0, 0, 0);
+    } else if (type === 'weekend') {
+        const day = d.getDay();
+        const diff = (6 - day + 7) % 7 || 7; // Next Saturday
+        d.setDate(d.getDate() + diff);
+        d.setHours(12, 0, 0, 0);
+    }
+
+    // Format to YYYY-MM-DDTHH:MM (local time string for datetime-local)
+    const pad = (n) => String(n).padStart(2, '0');
+    const localIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    input.value = localIso;
+}
+
+// ============ ADD TODO ============
+
+async function addTodo(e) {
+    e.preventDefault();
+
+    const errorDiv = document.getElementById('todo-error');
+    errorDiv.style.display = 'none';
+
+    const title = document.getElementById('todo-title').value.trim();
+    const description = document.getElementById('todo-desc').value.trim();
+    const dueDate = document.getElementById('todo-due').value || null;
+    const priority = document.getElementById('todo-priority').value || 'medium';
+
+    if (!title) {
+        errorDiv.textContent = 'Please provide a task title';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('btn-add-todo');
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/todo', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                title: title,
+                description: description,
+                due_date: dueDate,
+                priority: priority
+            })
+        });
+
+        if (!checkAuth(res)) return;
+
+        if (res.ok) {
+            document.getElementById('todo-title').value = '';
+            document.getElementById('todo-desc').value = '';
+            document.getElementById('todo-due').value = '';
+            document.getElementById('todo-priority').value = 'medium';
+            await loadTodos();
+        } else {
+            const data = await res.json();
+            errorDiv.textContent = data.detail || 'Failed to add task';
+            errorDiv.style.display = 'block';
+        }
+    } catch (err) {
+        errorDiv.textContent = 'Something went wrong. Please try again.';
+        errorDiv.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// ============ TOGGLE STATUS ============
+
+async function toggleTodoStatus(id) {
+    try {
+        const res = await fetch(`/todo/${id}/toggle`, {
+            method: 'PATCH',
+            headers: authHeaders()
+        });
+
+        if (!checkAuth(res)) return;
+
+        if (res.ok) {
+            // Optimistic update in memory
+            const todo = allTodos.find(t => t.id === id);
+            if (todo) {
+                todo.completed = !todo.completed;
+                updateStats();
+                renderTodos();
+            } else {
+                loadTodos();
+            }
+        }
+    } catch (err) {
+        console.error('Toggle error:', err);
+    }
+}
+
+// ============ DELETE TODO ============
+
+async function deleteTodo(id) {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+
+    try {
+        const res = await fetch(`/todo/${id}`, {
+            method: 'DELETE',
+            headers: authHeaders()
+        });
+
+        if (!checkAuth(res)) return;
+
+        if (res.ok) {
+            allTodos = allTodos.filter(t => t.id !== id);
+            updateStats();
+            renderTodos();
+        }
+    } catch (err) {
+        console.error('Delete error:', err);
+    }
+}
+
+// ============ EDIT MODAL ============
+
+function openEdit(id) {
+    const todo = allTodos.find(t => t.id === id);
+    if (!todo) return;
+
+    document.getElementById('edit-error').style.display = 'none';
+    document.getElementById('edit-id').value = todo.id;
+    document.getElementById('edit-title').value = todo.title || '';
+    document.getElementById('edit-desc').value = todo.description || '';
+    document.getElementById('edit-priority').value = todo.priority || 'medium';
+    document.getElementById('edit-completed').checked = Boolean(todo.completed);
+
+    // Format due_date for datetime-local input
+    if (todo.due_date) {
+        try {
+            const d = new Date(todo.due_date.replace(' ', 'T'));
+            if (!isNaN(d.getTime())) {
+                const pad = (n) => String(n).padStart(2, '0');
+                document.getElementById('edit-due').value =
+                    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            } else {
+                document.getElementById('edit-due').value = '';
+            }
+        } catch (e) {
+            document.getElementById('edit-due').value = '';
+        }
+    } else {
+        document.getElementById('edit-due').value = '';
+    }
+
+    document.getElementById('edit-modal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('edit-modal').style.display = 'none';
+}
+
+// ============ UPDATE TODO ============
+
+async function updateTodo(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('edit-id').value;
+    const title = document.getElementById('edit-title').value.trim();
+    const description = document.getElementById('edit-desc').value.trim();
+    const dueDate = document.getElementById('edit-due').value || null;
+    const priority = document.getElementById('edit-priority').value;
+    const completed = document.getElementById('edit-completed').checked;
+
+    const errorDiv = document.getElementById('edit-error');
+    errorDiv.style.display = 'none';
+
+    if (!title) {
+        errorDiv.textContent = 'Task title cannot be empty';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('btn-save-edit');
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(`/todo/${id}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                title: title,
+                description: description,
+                due_date: dueDate,
+                priority: priority,
+                completed: completed
+            })
+        });
+
+        if (!checkAuth(res)) return;
+
+        if (res.ok) {
+            closeModal();
+            loadTodos();
+        } else {
+            const data = await res.json();
+            errorDiv.textContent = data.detail || 'Failed to update task';
+            errorDiv.style.display = 'block';
+        }
+    } catch (err) {
+        errorDiv.textContent = 'Something went wrong';
+        errorDiv.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// ============ LOGOUT ============
+
+function logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    window.location.href = '/login';
+}
+
+// ============ HELPERS ============
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+});
+
+// Load todos on page load
+loadTodos();
+
+</script>
+{% endblock %}

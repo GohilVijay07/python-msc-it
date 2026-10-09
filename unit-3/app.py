@@ -1,204 +1,72 @@
+# ============================================================
+# MAIN APP - FastAPI Entry Point
+# ============================================================
+
+import os
+from dotenv import load_dotenv, find_dotenv
 from fastapi import FastAPI
-from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import declarative_base, sessionmaker
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from database import engine
+from models import Base
+
+# Load .env variables
+load_dotenv(find_dotenv())
+
+# Import route files
+from routes import auth_routes, todo_routes, user_routes, page_routes
 
 
-app = FastAPI()
+# Drop old 'todo' table (from previous code) if it exists
+with engine.connect() as conn:
+    conn.execute(text("DROP TABLE IF EXISTS todo"))
+    conn.commit()
 
-
-# Database
-engine = create_engine(
-    "sqlite:///todo.db",
-    connect_args={"check_same_thread": False}
-)
-
-Session = sessionmaker(bind=engine)
-
-Base = declarative_base()
-
-
-# Table
-class Todo(Base):
-
-    __tablename__ = "todo"
-
-    id = Column(Integer, primary_key=True)
-    title = Column(String)
-    description = Column(String)
-
-
-class User(Base):
-
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True)
-    password = Column(String)
-
-
-# Create table
+# Create all tables
 Base.metadata.create_all(engine)
 
-
-# Data format
-class TodoData(BaseModel):
-
-    title: str
-    description: str
-
-
-class UserData(BaseModel):
-
-    username: str
-    password: str
-
-
-# =========================
-# CREATE
-# =========================
-
-@app.post("/todo")
-def add_todo(data: TodoData):
-
-    db = Session()
-
-    todo = Todo(
-        title=data.title,
-        description=data.description
-    )
-
-    db.add(todo)
-    db.commit()
-
-    db.close()
-
-    return {"message": "Todo added"}
+# Auto-migrate SQLite schema for todos table
+with engine.connect() as conn:
+    res = conn.execute(text("PRAGMA table_info(todos);")).fetchall()
+    existing_cols = [r[1] for r in res]
+    if "completed" not in existing_cols:
+        conn.execute(text("ALTER TABLE todos ADD COLUMN completed BOOLEAN DEFAULT 0"))
+    if "priority" not in existing_cols:
+        conn.execute(text("ALTER TABLE todos ADD COLUMN priority VARCHAR DEFAULT 'medium'"))
+    if "due_date" not in existing_cols:
+        conn.execute(text("ALTER TABLE todos ADD COLUMN due_date VARCHAR DEFAULT NULL"))
+    if "created_at" not in existing_cols:
+        conn.execute(text("ALTER TABLE todos ADD COLUMN created_at DATETIME DEFAULT NULL"))
+        conn.execute(text("UPDATE todos SET created_at = datetime('now') WHERE created_at IS NULL"))
+    conn.commit()
 
 
-# =========================
-# READ
-# =========================
-
-@app.get("/todo")
-def get_todo():
-
-    db = Session()
-
-    todos = db.query(Todo).all()
-
-    db.close()
-
-    return todos
+# Create FastAPI app
+app_title = os.getenv("APP_NAME", "Todo App with JWT Authentication")
+app = FastAPI(title=app_title)
 
 
-# =========================
-# UPDATE
-# =========================
+# Base directory for resolving static and template assets
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-@app.put("/todo/{id}")
-def update_todo(id: int, data: TodoData):
-
-    db = Session()
-
-    todo = db.query(Todo).filter(Todo.id == id).first()
-
-    if todo:
-        todo.title = data.title
-        todo.description = data.description
-
-        db.commit()
-
-        db.close()
-
-        return {"message": "Todo updated"}
-
-    db.close()
-
-    return {"message": "Todo not found"}
+# Mount static files (CSS, JS)
+if os.path.isdir(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-# =========================
-# DELETE
-# =========================
+# Register API routes
+app.include_router(auth_routes.router)
+app.include_router(todo_routes.router)
+app.include_router(user_routes.router)
 
-@app.delete("/todo/{id}")
-def delete_todo(id: int):
-
-    db = Session()
-
-    todo = db.query(Todo).filter(Todo.id == id).first()
-
-    if todo:
-        db.delete(todo)
-        db.commit()
-
-        db.close()
-
-        return {"message": "Todo deleted"}
-
-    db.close()
-
-    return {"message": "Todo not found"}
+# Register Page routes (HTML templates)
+app.include_router(page_routes.router)
 
 
-# =========================
-# USER / AUTH
-# =========================
-
-# 1. Register (Signup)
-@app.post("/register")
-def register(data: UserData):
-
-    db = Session()
-
-    # Check if username already exists
-    existing_user = db.query(User).filter(User.username == data.username).first()
-    if existing_user:
-        db.close()
-        return {"message": "Username already exists"}
-
-    user = User(
-        username=data.username,
-        password=data.password
-    )
-
-    db.add(user)
-    db.commit()
-    db.close()
-
-    return {"message": "User registered successfully"}
-
-
-# 2. Login
-@app.post("/login")
-def login(data: UserData):
-
-    db = Session()
-
-    user = db.query(User).filter(
-        User.username == data.username,
-        User.password == data.password
-    ).first()
-
-    db.close()
-
-    if user:
-        return {"message": "Login successful", "username": user.username}
-
-    return {"message": "Invalid username or password"}
-
-
-# 3. View All Users
-@app.get("/users")
-def get_users():
-
-    db = Session()
-
-    users = db.query(User).all()
-
-    user_list = [{"id": u.id, "username": u.username, "password": u.password} for u in users]
-
-    db.close()
-
-    return user_list
+if __name__ == "__main__":
+    import uvicorn
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+    reload = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
+    uvicorn.run("app:app", host=host, port=port, reload=reload)

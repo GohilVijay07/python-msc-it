@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Signup - Todo App{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+
+    <div class="auth-card">
+
+        <div class="auth-header">
+            <div class="logo">✨</div>
+            <h1>Create Account</h1>
+            <p>Sign up to start organizing your tasks</p>
+        </div>
+
+        <div id="error-msg" class="error-msg" style="display:none;"></div>
+        <div id="success-msg" class="success-msg" style="display:none;"></div>
+
+        <form id="signup-form" onsubmit="return handleSignup(event)">
+
+            <div class="input-group">
+                <label for="full_name">Full Name</label>
+                <input type="text" id="full_name" name="full_name"
+                       placeholder="Enter your full name" required>
+            </div>
+
+            <div class="input-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username"
+                       placeholder="Choose a username" required>
+            </div>
+
+            <div class="input-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password"
+                       placeholder="Choose a password" required>
+            </div>
+
+            <button type="submit" class="btn-primary" id="signup-btn">
+                Create Account
+            </button>
+
+        </form>
+
+        <div class="auth-footer">
+            <p>Already have an account?
+                <a href="/login">Login</a>
+            </p>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function handleSignup(e) {
+    e.preventDefault();
+
+    const btn = document.getElementById('signup-btn');
+    const errorMsg = document.getElementById('error-msg');
+    const successMsg = document.getElementById('success-msg');
+
+    btn.textContent = 'Creating...';
+    btn.disabled = true;
+    errorMsg.style.display = 'none';
+    successMsg.style.display = 'none';
+
+    const full_name = document.getElementById('full_name').value;
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+
+    try {
+        const res = await fetch('/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, full_name })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            successMsg.textContent = 'Account created! Redirecting to login...';
+            successMsg.style.display = 'block';
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1500);
+        } else {
+            errorMsg.textContent = data.detail || 'Signup failed';
+            errorMsg.style.display = 'block';
+        }
+
+    } catch (err) {
+        errorMsg.textContent = 'Something went wrong';
+        errorMsg.style.display = 'block';
+    }
+
+    btn.textContent = 'Create Account';
+    btn.disabled = false;
+}
+</script>
+{% endblock %}

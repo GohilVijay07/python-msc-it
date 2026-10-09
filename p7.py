@@ -36,5 +36,3 @@ student2 = Student("Ravi")
 student2.register_course(course1)
 student2.register_course(course2)
 student2.register_course(course3)
-
-
